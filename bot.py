@@ -12,91 +12,47 @@ CHAT_ID = int(os.getenv("CHAT_ID"))
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-MIN_PROFIT = 3
 
-
-async def get_getgems():
-
-    url = "https://api.getgems.io/graphql"
-
-    query = {
-        "query": """
-        {
-          nfts(first:30){
-            edges{
-              node{
-                name
-                sale{
-                  price
-                }
-              }
-            }
-          }
-        }
-        """
-    }
-
-    async with aiohttp.ClientSession() as session:
-
-        async with session.post(url, json=query) as r:
-
-            text = await response.text()
-print(text)
-
-nfts = []
-
-for nft in data["data"]["nfts"]["edges"]:
-
-        name = nft["node"]["name"]
-        price = nft["node"]["sale"]["price"]
-
-        nfts.append({
-            "name": name,
-            "price": float(price)/1e9
-        })
-
-    return nfts
-
-
-async def scan():
+async def scanner():
 
     while True:
 
         try:
 
-            nfts = await get_getgems()
+            getgems = await get_getgems()
+            portals = await get_portals()
 
-            for nft in nfts:
+            deals = find_arbitrage(getgems, portals)
 
-                buy = nft["price"]
-                sell = buy * 1.5
+            for deal in deals:
 
-                profit = sell - buy
+                text = f"""
+🔥 NFT Арбитраж
 
-                if profit >= MIN_PROFIT:
+NFT: {deal['name']}
 
-                    msg = f"""
-NFT: {nft["name"]}
+Buy: {deal['buy']} TON
+Sell: {deal['sell']} TON
 
-Buy: {buy} TON
-Sell: {sell} TON
-
-Profit: {profit} TON
+Profit: {deal['profit']} TON
 """
 
-                    await bot.send_message(CHAT_ID, msg)
+                await bot.send_message(CHAT_ID, text)
 
         except Exception as e:
-            print(e)
 
-        await asyncio.sleep(30)
+            print("ERROR:", e)
+
+        await asyncio.sleep(60)
 
 
 async def main():
 
-    asyncio.create_task(scan())
+    asyncio.create_task(scanner())
 
     await dp.start_polling(bot)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+
+    asyncio.run(main())
