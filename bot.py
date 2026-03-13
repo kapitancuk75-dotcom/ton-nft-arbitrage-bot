@@ -1,62 +1,97 @@
 import asyncio
-import os
-
+import aiohttp
 from aiogram import Bot, Dispatcher
-from markets import get_getgems, get_portals
-from arbitrage import find_arbitrage
 
-TOKEN = os.getenv("8789505484:AAFpqqn4AGC-DkDCC3Txjse6YSRSNij6Emw")
-chat_id_env = os.getenv("5524166026")
-
-if chat_id_env is None:
-    raise Exception("CHAT_ID не найден в переменных Railway")
-
-CHAT_ID = int(chat_id_env)
+TOKEN = "TOKEN_ТВОЕГО_БОТА"
+CHAT_ID = 123456789
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+MIN_PROFIT = 3
 
-async def scanner():
+
+async def get_getgems():
+
+    url = "https://api.getgems.io/graphql"
+
+    query = {
+        "query": """
+        {
+          nfts(first:30){
+            edges{
+              node{
+                name
+                sale{
+                  price
+                }
+              }
+            }
+          }
+        }
+        """
+    }
+
+    async with aiohttp.ClientSession() as session:
+
+        async with session.post(url, json=query) as r:
+
+            data = await r.json()
+
+    nfts = []
+
+    for nft in data["data"]["nfts"]["edges"]:
+
+        name = nft["node"]["name"]
+        price = nft["node"]["sale"]["price"]
+
+        nfts.append({
+            "name": name,
+            "price": float(price)/1e9
+        })
+
+    return nfts
+
+
+async def scan():
 
     while True:
 
         try:
 
-            getgems = await get_getgems()
-            portals = await get_portals()
+            nfts = await get_getgems()
 
-            deals = find_arbitrage(getgems, portals)
+            for nft in nfts:
 
-            for deal in deals:
+                buy = nft["price"]
+                sell = buy * 1.5
 
-                text = f"""
-🔥 NFT Арбитраж
+                profit = sell - buy
 
-NFT: {deal['name']}
+                if profit >= MIN_PROFIT:
 
-Buy: {deal['buy']} TON
-Sell: {deal['sell']} TON
+                    msg = f"""
+NFT: {nft["name"]}
 
-Profit: {deal['profit']} TON
+Buy: {buy} TON
+Sell: {sell} TON
+
+Profit: {profit} TON
 """
 
-                await bot.send_message(CHAT_ID, text)
+                    await bot.send_message(CHAT_ID, msg)
 
         except Exception as e:
+            print(e)
 
-            print("ERROR:", e)
-
-        await asyncio.sleep(60)
+        await asyncio.sleep(30)
 
 
 async def main():
 
-    asyncio.create_task(scanner())
+    asyncio.create_task(scan())
 
     await dp.start_polling(bot)
 
 
-if __name__ == "__main__":
-
-    asyncio.run(main())
+asyncio.run(main())
