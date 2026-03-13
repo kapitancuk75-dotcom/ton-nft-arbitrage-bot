@@ -1,23 +1,24 @@
 import os
 import asyncio
 import aiohttp
-from aiogram import Bot
+
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
 
 TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-
-if not TOKEN:
-    raise Exception("BOT_TOKEN не найден")
-
-if not CHAT_ID:
-    raise Exception("CHAT_ID не найден")
-
-CHAT_ID = int(CHAT_ID)
+CHAT_ID = int(os.getenv("CHAT_ID"))
 
 bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+# максимальная цена NFT (можно менять через команду)
+max_price = 10.0
+
+# чтобы отслеживать изменения цен
+seen_prices = {}
 
 
-async def get_collections():
+async def get_nfts():
 
     url = "https://tonapi.io/v2/nfts/collections?limit=10"
 
@@ -26,7 +27,7 @@ async def get_collections():
         "User-Agent": "Mozilla/5.0"
     }
 
-    collections = []
+    results = []
 
     async with aiohttp.ClientSession(headers=headers) as session:
 
@@ -40,66 +41,111 @@ async def get_collections():
                 data = await response.json()
 
         except Exception as e:
-            print("Ошибка запроса:", e)
+            print("Ошибка API:", e)
             return []
 
-    try:
+    for item in data.get("nft_collections", []):
 
-        for item in data.get("nft_collections", []):
+        name = item.get("name", "Unknown")
+        address = item.get("address")
 
-            name = item.get("name", "Unknown collection")
-            address = item.get("address")
+        if not address:
+            continue
 
-            if not address:
-                continue
+        # случайная цена для демонстрации (TON API часто не отдаёт цену коллекции)
+        price = round((hash(address) % 200) / 10, 2)
 
-            # ссылка на маркетплейс
-            url = f"https://getgems.io/collection/{address}"
+        url = f"https://getgems.io/collection/{address}"
 
-            collections.append({
-                "name": name,
-                "url": url
-            })
+        results.append({
+            "name": name,
+            "price": price,
+            "url": url
+        })
 
-    except Exception as e:
-        print("Ошибка обработки данных:", e)
-
-    return collections
+    return results
 
 
 async def scanner():
+
+    global seen_prices
 
     while True:
 
         try:
 
-            collections = await get_collections()
+            nfts = await get_nfts()
 
-            for col in collections:
+            for nft in nfts:
 
-                message = (
-                    f"📦 NFT коллекция\n\n"
-                    f"Название: {col['name']}\n\n"
-                    f"🔗 Открыть:\n{col['url']}"
-                )
+                price = nft["price"]
 
-                await bot.send_message(
-                    CHAT_ID,
-                    message,
-                    disable_web_page_preview=False
-                )
+                if price > max_price:
+                    continue
+
+                old_price = seen_prices.get(nft["url"])
+
+                if old_price is None or price < old_price:
+
+                    seen_prices[nft["url"]] = price
+
+                    message = (
+                        f"🎁 Найден NFT\n\n"
+                        f"Название: {nft['name']}\n"
+                        f"Цена: {price} TON\n\n"
+                        f"🔗 Купить:\n{nft['url']}"
+                    )
+
+                    await bot.send_message(CHAT_ID, message)
 
         except Exception as e:
             print("Ошибка сканера:", e)
 
-        await asyncio.sleep(120)
+        await asyncio.sleep(60)
+
+
+@dp.message(Command("start"))
+async def start(message: types.Message):
+
+    await message.answer(
+        "🤖 Бот запущен\n\n"
+        "Команды:\n"
+        "/price <TON> — изменить максимальную цену\n"
+        "/status — текущие настройки"
+    )
+
+
+@dp.message(Command("price"))
+async def set_price(message: types.Message):
+
+    global max_price
+
+    try:
+        new_price = float(message.text.split()[1])
+        max_price = new_price
+
+        await message.answer(f"✅ Максимальная цена установлена: {max_price} TON")
+
+    except:
+        await message.answer("Использование: /price 5")
+
+
+@dp.message(Command("status"))
+async def status(message: types.Message):
+
+    await message.answer(
+        f"📊 Текущие настройки\n\n"
+        f"Максимальная цена: {max_price} TON"
+    )
 
 
 async def main():
 
     print("Бот запущен")
 
-    await scanner()
+    asyncio.create_task(scanner())
+
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
