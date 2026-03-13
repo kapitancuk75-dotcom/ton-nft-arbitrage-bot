@@ -21,7 +21,8 @@ MIN_PROFIT = 3
 
 async def get_nfts():
 
-    url = "https://tonapi.io/v2/nfts?limit=20"
+    # рабочий endpoint TON API
+    url = "https://tonapi.io/v2/marketplace/events?limit=20"
 
     headers = {
         "Accept": "application/json",
@@ -43,18 +44,21 @@ async def get_nfts():
                 data = await response.json()
 
         except Exception as e:
-
             print("Ошибка запроса:", e)
             return []
 
     try:
 
-        for nft in data.get("nft_items", []):
+        for event in data.get("events", []):
+
+            nft = event.get("nft")
+
+            if not nft:
+                continue
 
             name = nft.get("metadata", {}).get("name", "Unknown NFT")
 
-            # примерная цена (TON API не всегда отдаёт цену)
-            price = nft.get("sale", {}).get("price", 0)
+            price = event.get("price")
 
             if not price:
                 continue
@@ -67,7 +71,6 @@ async def get_nfts():
             })
 
     except Exception as e:
-
         print("Ошибка обработки NFT:", e)
 
     return nfts
@@ -105,7 +108,6 @@ async def scan_market():
                     await bot.send_message(CHAT_ID, message)
 
         except Exception as e:
-
             print("Ошибка сканирования:", e)
 
         await asyncio.sleep(60)
