@@ -6,7 +6,12 @@ from markets import get_getgems, get_portals
 from arbitrage import find_arbitrage
 
 TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID"))
+chat_id_env = os.getenv("CHAT_ID")
+
+if chat_id_env is None:
+    raise Exception("CHAT_ID не найден в переменных Railway")
+
+CHAT_ID = int(chat_id_env)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
