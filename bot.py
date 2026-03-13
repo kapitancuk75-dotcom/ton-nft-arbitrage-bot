@@ -42,6 +42,7 @@ async def get_getgems():
 
             text = await response.text()
 print(text)
+
 nfts = []
 
     for nft in data["data"]["nfts"]["edges"]:
