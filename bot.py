@@ -1,8 +1,12 @@
+import asyncio
 import os
+
 from aiogram import Bot, Dispatcher
+from markets import get_getgems, get_portals
+from arbitrage import find_arbitrage
 
 TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+CHAT_ID = int(os.getenv("CHAT_ID"))
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
