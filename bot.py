@@ -31,7 +31,6 @@ async def get_collections():
     async with aiohttp.ClientSession(headers=headers) as session:
 
         try:
-
             async with session.get(url) as response:
 
                 if response.status != 200:
@@ -49,12 +48,17 @@ async def get_collections():
         for item in data.get("nft_collections", []):
 
             name = item.get("name", "Unknown collection")
+            address = item.get("address")
 
-            address = item.get("address", "no address")
+            if not address:
+                continue
+
+            # ссылка на маркетплейс
+            url = f"https://getgems.io/collection/{address}"
 
             collections.append({
                 "name": name,
-                "address": address
+                "url": url
             })
 
     except Exception as e:
@@ -73,16 +77,17 @@ async def scanner():
 
             for col in collections:
 
-                message = f"""
-📦 NFT коллекция
+                message = (
+                    f"📦 NFT коллекция\n\n"
+                    f"Название: {col['name']}\n\n"
+                    f"🔗 Открыть:\n{col['url']}"
+                )
 
-Название: {col['name']}
-
-Адрес:
-{col['address']}
-"""
-
-                await bot.send_message(CHAT_ID, message)
+                await bot.send_message(
+                    CHAT_ID,
+                    message,
+                    disable_web_page_preview=False
+                )
 
         except Exception as e:
             print("Ошибка сканера:", e)
