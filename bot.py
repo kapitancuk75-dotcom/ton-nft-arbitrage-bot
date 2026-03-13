@@ -16,20 +16,17 @@ CHAT_ID = int(CHAT_ID)
 
 bot = Bot(token=TOKEN)
 
-MIN_PROFIT = 3
 
+async def get_collections():
 
-async def get_nfts():
-
-    # рабочий endpoint TON API
-    url = "https://tonapi.io/v2/marketplace/events?limit=20"
+    url = "https://tonapi.io/v2/nfts/collections?limit=10"
 
     headers = {
         "Accept": "application/json",
         "User-Agent": "Mozilla/5.0"
     }
 
-    nfts = []
+    collections = []
 
     async with aiohttp.ClientSession(headers=headers) as session:
 
@@ -38,7 +35,7 @@ async def get_nfts():
             async with session.get(url) as response:
 
                 if response.status != 200:
-                    print("Ошибка TON API:", response.status)
+                    print("TON API статус:", response.status)
                     return []
 
                 data = await response.json()
@@ -49,75 +46,55 @@ async def get_nfts():
 
     try:
 
-        for event in data.get("events", []):
+        for item in data.get("nft_collections", []):
 
-            nft = event.get("nft")
+            name = item.get("name", "Unknown collection")
 
-            if not nft:
-                continue
+            address = item.get("address", "no address")
 
-            name = nft.get("metadata", {}).get("name", "Unknown NFT")
-
-            price = event.get("price")
-
-            if not price:
-                continue
-
-            price = float(price) / 1e9
-
-            nfts.append({
+            collections.append({
                 "name": name,
-                "price": price
+                "address": address
             })
 
     except Exception as e:
-        print("Ошибка обработки NFT:", e)
+        print("Ошибка обработки данных:", e)
 
-    return nfts
+    return collections
 
 
-async def scan_market():
+async def scanner():
 
     while True:
 
         try:
 
-            nfts = await get_nfts()
+            collections = await get_collections()
 
-            for nft in nfts:
+            for col in collections:
 
-                buy_price = nft["price"]
+                message = f"""
+📦 NFT коллекция
 
-                sell_price = buy_price * 1.5
+Название: {col['name']}
 
-                profit = sell_price - buy_price
-
-                if profit >= MIN_PROFIT:
-
-                    message = f"""
-🔥 Найден NFT
-
-Название: {nft['name']}
-
-Цена покупки: {buy_price:.2f} TON
-Цена продажи: {sell_price:.2f} TON
-
-Прибыль: {profit:.2f} TON
+Адрес:
+{col['address']}
 """
 
-                    await bot.send_message(CHAT_ID, message)
+                await bot.send_message(CHAT_ID, message)
 
         except Exception as e:
-            print("Ошибка сканирования:", e)
+            print("Ошибка сканера:", e)
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(120)
 
 
 async def main():
 
     print("Бот запущен")
 
-    await scan_market()
+    await scanner()
 
 
 if __name__ == "__main__":
