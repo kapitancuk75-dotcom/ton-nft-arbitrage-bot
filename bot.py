@@ -5,8 +5,8 @@ from aiogram import Bot, Dispatcher
 from markets import get_getgems, get_portals
 from arbitrage import find_arbitrage
 
-TOKEN = os.getenv("BOT_TOKEN")
-chat_id_env = os.getenv("CHAT_ID")
+TOKEN = os.getenv("8789505484:AAFpqqn4AGC-DkDCC3Txjse6YSRSNij6Emw")
+chat_id_env = os.getenv("5524166026")
 
 if chat_id_env is None:
     raise Exception("CHAT_ID не найден в переменных Railway")
