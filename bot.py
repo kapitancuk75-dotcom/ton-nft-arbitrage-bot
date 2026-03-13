@@ -1,23 +1,21 @@
 import os
 import asyncio
 import aiohttp
+from aiogram import Bot
 
-from aiogram import Bot, Dispatcher
-
-# Получаем переменные окружения
+# переменные среды
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-if TOKEN is None:
+if not TOKEN:
     raise Exception("BOT_TOKEN не найден")
 
-if CHAT_ID is None:
+if not CHAT_ID:
     raise Exception("CHAT_ID не найден")
 
 CHAT_ID = int(CHAT_ID)
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher()
 
 MIN_PROFIT = 3
 
@@ -26,14 +24,22 @@ async def get_getgems():
 
     url = "https://api.getgems.io/graphql"
 
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0",
+        "Origin": "https://getgems.io",
+        "Referer": "https://getgems.io/"
+    }
+
     query = {
         "query": """
         {
-          nfts(first:40){
-            edges{
-              node{
+          nfts(first: 20) {
+            edges {
+              node {
                 name
-                sale{
+                sale {
                   price
                 }
               }
@@ -43,41 +49,43 @@ async def get_getgems():
         """
     }
 
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-
     nfts = []
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(headers=headers) as session:
 
-        async with session.post(url, json=query, headers=headers) as response:
+        try:
 
-            # если API вернул не JSON
-            if response.content_type != "application/json":
-                text = await response.text()
-                print("Getgems вернул не JSON:", text)
-                return []
+            async with session.post(url, json=query) as response:
 
-            data = await response.json()
+                # защита от CloudFront HTML
+                if response.content_type != "application/json":
+                    text = await response.text()
+                    print("Getgems вернул HTML:", text[:200])
+                    return []
+
+                data = await response.json()
+
+        except Exception as e:
+
+            print("Ошибка запроса Getgems:", e)
+            return []
 
     try:
 
-        for nft in data["data"]["nfts"]["edges"]:
+        for item in data["data"]["nfts"]["edges"]:
 
-            node = nft["node"]
+            node = item["node"]
 
-            name = node["name"]
+            name = node.get("name")
 
             sale = node.get("sale")
 
-            if sale is None:
+            if not sale:
                 continue
 
             price = sale.get("price")
 
-            if price is None:
+            if not price:
                 continue
 
             price = float(price) / 1e9
@@ -88,7 +96,8 @@ async def get_getgems():
             })
 
     except Exception as e:
-        print("Ошибка обработки NFT:", e)
+
+        print("Ошибка обработки данных:", e)
 
     return nfts
 
@@ -112,12 +121,12 @@ async def scan_market():
                 if profit >= MIN_PROFIT:
 
                     message = f"""
-🔥 Найден арбитраж
+🔥 Найден NFT
 
-NFT: {nft['name']}
+Название: {nft['name']}
 
-Купить: {buy_price:.2f} TON
-Продать: {sell_price:.2f} TON
+Цена покупки: {buy_price:.2f} TON
+Цена продажи: {sell_price:.2f} TON
 
 Прибыль: {profit:.2f} TON
 """
@@ -135,9 +144,7 @@ async def main():
 
     print("Бот запущен")
 
-    asyncio.create_task(scan_market())
-
-    await dp.start_polling(bot)
+    await scan_market()
 
 
 if __name__ == "__main__":
