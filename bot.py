@@ -1,9 +1,8 @@
-import asyncio
-import aiohttp
+import os
 from aiogram import Bot, Dispatcher
 
-TOKEN = "TOKEN_ТВОЕГО_БОТА"
-CHAT_ID = 123456789
+TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
