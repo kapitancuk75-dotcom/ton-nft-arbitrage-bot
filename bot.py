@@ -3,7 +3,6 @@ import asyncio
 import aiohttp
 from aiogram import Bot
 
-# переменные среды
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
@@ -20,33 +19,13 @@ bot = Bot(token=TOKEN)
 MIN_PROFIT = 3
 
 
-async def get_getgems():
+async def get_nfts():
 
-    url = "https://api.getgems.io/graphql"
+    url = "https://tonapi.io/v2/nfts?limit=20"
 
     headers = {
-        "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0",
-        "Origin": "https://getgems.io",
-        "Referer": "https://getgems.io/"
-    }
-
-    query = {
-        "query": """
-        {
-          nfts(first: 20) {
-            edges {
-              node {
-                name
-                sale {
-                  price
-                }
-              }
-            }
-          }
-        }
-        """
+        "User-Agent": "Mozilla/5.0"
     }
 
     nfts = []
@@ -55,35 +34,27 @@ async def get_getgems():
 
         try:
 
-            async with session.post(url, json=query) as response:
+            async with session.get(url) as response:
 
-                # защита от CloudFront HTML
-                if response.content_type != "application/json":
-                    text = await response.text()
-                    print("Getgems вернул HTML:", text[:200])
+                if response.status != 200:
+                    print("Ошибка TON API:", response.status)
                     return []
 
                 data = await response.json()
 
         except Exception as e:
 
-            print("Ошибка запроса Getgems:", e)
+            print("Ошибка запроса:", e)
             return []
 
     try:
 
-        for item in data["data"]["nfts"]["edges"]:
+        for nft in data.get("nft_items", []):
 
-            node = item["node"]
+            name = nft.get("metadata", {}).get("name", "Unknown NFT")
 
-            name = node.get("name")
-
-            sale = node.get("sale")
-
-            if not sale:
-                continue
-
-            price = sale.get("price")
+            # примерная цена (TON API не всегда отдаёт цену)
+            price = nft.get("sale", {}).get("price", 0)
 
             if not price:
                 continue
@@ -97,7 +68,7 @@ async def get_getgems():
 
     except Exception as e:
 
-        print("Ошибка обработки данных:", e)
+        print("Ошибка обработки NFT:", e)
 
     return nfts
 
@@ -108,7 +79,7 @@ async def scan_market():
 
         try:
 
-            nfts = await get_getgems()
+            nfts = await get_nfts()
 
             for nft in nfts:
 
