@@ -1,58 +1,144 @@
-import aiohttp
-import asyncio
 import os
+import asyncio
+import aiohttp
 
 from aiogram import Bot, Dispatcher
-from markets import get_getgems, get_portals
-from arbitrage import find_arbitrage
 
+# Получаем переменные окружения
 TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID"))
+CHAT_ID = os.getenv("CHAT_ID")
+
+if TOKEN is None:
+    raise Exception("BOT_TOKEN не найден")
+
+if CHAT_ID is None:
+    raise Exception("CHAT_ID не найден")
+
+CHAT_ID = int(CHAT_ID)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+MIN_PROFIT = 3
 
-async def scanner():
+
+async def get_getgems():
+
+    url = "https://api.getgems.io/graphql"
+
+    query = {
+        "query": """
+        {
+          nfts(first:40){
+            edges{
+              node{
+                name
+                sale{
+                  price
+                }
+              }
+            }
+          }
+        }
+        """
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    nfts = []
+
+    async with aiohttp.ClientSession() as session:
+
+        async with session.post(url, json=query, headers=headers) as response:
+
+            # если API вернул не JSON
+            if response.content_type != "application/json":
+                text = await response.text()
+                print("Getgems вернул не JSON:", text)
+                return []
+
+            data = await response.json()
+
+    try:
+
+        for nft in data["data"]["nfts"]["edges"]:
+
+            node = nft["node"]
+
+            name = node["name"]
+
+            sale = node.get("sale")
+
+            if sale is None:
+                continue
+
+            price = sale.get("price")
+
+            if price is None:
+                continue
+
+            price = float(price) / 1e9
+
+            nfts.append({
+                "name": name,
+                "price": price
+            })
+
+    except Exception as e:
+        print("Ошибка обработки NFT:", e)
+
+    return nfts
+
+
+async def scan_market():
 
     while True:
 
         try:
 
-            getgems = await get_getgems()
-            portals = await get_portals()
+            nfts = await get_getgems()
 
-            deals = find_arbitrage(getgems, portals)
+            for nft in nfts:
 
-            for deal in deals:
+                buy_price = nft["price"]
 
-                text = f"""
-🔥 NFT Арбитраж
+                sell_price = buy_price * 1.5
 
-NFT: {deal['name']}
+                profit = sell_price - buy_price
 
-Buy: {deal['buy']} TON
-Sell: {deal['sell']} TON
+                if profit >= MIN_PROFIT:
 
-Profit: {deal['profit']} TON
+                    message = f"""
+🔥 Найден арбитраж
+
+NFT: {nft['name']}
+
+Купить: {buy_price:.2f} TON
+Продать: {sell_price:.2f} TON
+
+Прибыль: {profit:.2f} TON
 """
 
-                await bot.send_message(CHAT_ID, text)
+                    await bot.send_message(CHAT_ID, message)
 
         except Exception as e:
 
-            print("ERROR:", e)
+            print("Ошибка сканирования:", e)
 
         await asyncio.sleep(60)
 
 
 async def main():
 
-    asyncio.create_task(scanner())
+    print("Бот запущен")
+
+    asyncio.create_task(scan_market())
 
     await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
-
     asyncio.run(main())
