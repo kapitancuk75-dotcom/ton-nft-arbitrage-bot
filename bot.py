@@ -40,7 +40,8 @@ async def get_getgems():
 
         async with session.post(url, json=query) as r:
 
-            data = await r.json()
+            text = await response.text()
+print(text)
 
     nfts = []
 
