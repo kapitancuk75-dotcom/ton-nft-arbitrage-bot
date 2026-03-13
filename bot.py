@@ -45,7 +45,7 @@ print(text)
 
 nfts = []
 
-    for nft in data["data"]["nfts"]["edges"]:
+for nft in data["data"]["nfts"]["edges"]:
 
         name = nft["node"]["name"]
         price = nft["node"]["sale"]["price"]
